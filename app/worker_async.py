@@ -1,16 +1,8 @@
-#!/usr/bin/env python
-
-"""
-Create multiple RabbitMQ connections from a single thread, using Pika and multiprocessing.Pool.
-Based on tutorial 2 (http://www.rabbitmq.com/tutorials/tutorial-two-python.html).
-"""
-
 import asyncio
 import multiprocessing
-import time
 
 from aio_pika.abc import AbstractIncomingMessage
-from aio_pika.connection import connect
+from aio_pika import connect_robust
 
 from app.stop_flag import StopFlag
 
@@ -23,7 +15,7 @@ async def callback(message: AbstractIncomingMessage) -> None:
 
 
 async def consume() -> None:
-    connection = await connect("amqp://guest:guest@localhost/")
+    connection = await connect_robust("amqp://guest:guest@localhost/")
     async with connection:
         channel = await connection.channel()
         await channel.set_qos(prefetch_count=1)  # Declaring queue
@@ -36,19 +28,19 @@ async def consume() -> None:
 
         try:
             await asyncio.Future()
-        except asyncio.CancelledError:
+        except (asyncio.CancelledError, KeyboardInterrupt):
             pass
 
 
 async def run_until_cancellation(flag: StopFlag) -> None:
-    task = asyncio.create_task(consume())
-    while not flag.stop and not task.done():
-        pass
-    if not task.done():
-        task.cancel()
     try:
+        task = asyncio.create_task(consume())
+        while not flag.stop and not task.done():
+            await asyncio.sleep(0.01)
+        if not task.done():
+            task.cancel()
         await task
-    except asyncio.CancelledError:
+    except (asyncio.CancelledError, KeyboardInterrupt):
         pass
 
 

@@ -38,7 +38,10 @@ def read_root() -> dict[str, str]:
 @app.post("/start-workers")
 def start_worker() -> None:
     global worker_manager
-    worker_manager.start()
+    if worker_manager.is_alive():
+        pass
+    else:
+        worker_manager.start()
 
 
 @app.post("/stop-workers")
