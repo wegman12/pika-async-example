@@ -5,66 +5,67 @@ Create multiple RabbitMQ connections from a single thread, using Pika and multip
 Based on tutorial 2 (http://www.rabbitmq.com/tutorials/tutorial-two-python.html).
 """
 
+import asyncio
 import multiprocessing
 import time
 
-import pika
-import pika.channel
-import pika.adapters
-import pika.adapters.blocking_connection
-import pika.adapters.asyncio_connection
-from pika.spec import Basic
-from pika.spec import BasicProperties
+from aio_pika.abc import AbstractIncomingMessage
+from aio_pika.connection import connect
+
 from app.stop_flag import StopFlag
 
 
-def callback(
-    ch: pika.adapters.blocking_connection.BlockingChannel,
-    method: Basic.Deliver,
-    _: BasicProperties,
-    body: bytes,
-) -> None:
-    print(
-        " [x] %r received %r"
-        % (
-            multiprocessing.current_process(),
-            body.decode(),
+async def callback(message: AbstractIncomingMessage) -> None:
+    text = message.body.decode()
+    print(f" [x] {repr(multiprocessing.current_process())} received {repr(text)}")
+    await asyncio.sleep(text.count("."))
+    await message.ack()
+
+
+async def consume() -> None:
+    connection = await connect("amqp://guest:guest@localhost/")
+    async with connection:
+        channel = await connection.channel()
+        await channel.set_qos(prefetch_count=1)  # Declaring queue
+        queue = await channel.declare_queue(
+            "hello",
+            durable=True,
         )
-    )
-    time.sleep(body.decode().count("."))
-    # print " [x] Done"
-    ch.basic_ack(delivery_tag=method.delivery_tag or 0)
+
+        await queue.consume(callback)
+
+        try:
+            await asyncio.Future()
+        except asyncio.CancelledError:
+            pass
 
 
-def consume() -> None:
-    connection = pika.adapters.asyncio_connection.AsyncioConnection(
-        pika.ConnectionParameters("localhost")
-    )
-    channel = connection.channel()
-    channel.basic_qos(prefetch_count=1)
-
-    channel.queue_declare(queue="hello", durable=True)
-
-    channel.basic_consume(queue="hello", on_message_callback=callback)
-
-    print(
-        f" [*] Waiting for messages on {repr(multiprocessing.current_process())}. To exit press CTRL+C"
-    )
-    try:
-        channel.start_consuming()
-    except KeyboardInterrupt:
+async def run_until_cancellation(flag: StopFlag) -> None:
+    task = asyncio.create_task(consume())
+    while not flag.stop and not task.done():
         pass
+    if not task.done():
+        task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+
+def consume_sync(flag: StopFlag) -> None:
+    asyncio.run(run_until_cancellation(flag))
 
 
 def start_workers(flag: StopFlag) -> None:
     workers = 5
     pool = multiprocessing.Pool(processes=workers)
     for i in range(0, workers):
-        print(" [*] Starting worker %d" % i)
-        pool.apply_async(consume)
-
-    while not flag.stop:
-        continue
-    print(" [*] Exiting...")
-    pool.terminate()
-    pool.join()
+        pool.apply_async(consume_sync, args=(flag,))
+    try:
+        while not flag.stop:
+            continue
+    except KeyboardInterrupt:
+        pass
+    finally:
+        pool.terminate()
+        pool.join()

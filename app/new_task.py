@@ -1,25 +1,19 @@
-#!/usr/bin/env python
-import sys
-
-import pika
+from aio_pika import Message, connect
 
 
-def create_task(message: str | None = None) -> None:
-    connection = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
-    channel = connection.channel()
+async def create_task(message: str | None = None) -> None:
+    connection = await connect("amqp://guest:guest@localhost/")
 
-    channel.queue_declare(queue="hello", durable=True)
-    channel.basic_qos(prefetch_count=1)
+    async with connection:
+        channel = await connection.channel()
 
-    message = message or "Hello World!"
+        message_body = message or "Hello World!"
 
-    channel.basic_publish(
-        exchange="",
-        routing_key="hello",
-        body=message.encode(),
-        properties=pika.BasicProperties(
-            delivery_mode=2,  # make message persistent
-        ),
-    )
+        payload = Message(
+            message_body.encode(),
+        )
 
-    connection.close()
+        await channel.default_exchange.publish(
+            payload,
+            routing_key="hello",
+        )
