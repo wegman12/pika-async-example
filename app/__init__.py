@@ -3,13 +3,15 @@ from typing import Any, AsyncIterator
 
 from fastapi import FastAPI
 
-from app import new_task, worker_async
-from app.stop_flag import StopFlag
+from app.models.stop_flag import StopFlag
+from app.services import worker_thread_manager, message_publishing_service
 from .models import QueueOptions
-from .worker_async import WorkerAsync
 from .extensions import register_extensions
+from app import configuration
 
-worker_manager = WorkerAsync(queue_options=QueueOptions(name="hello"))
+worker_manager = worker_thread_manager.WorkerThreadManager(
+    queue_options=QueueOptions(name="hello")
+)
 
 
 @asynccontextmanager
@@ -42,4 +44,6 @@ def stop_workers() -> None:
 
 @app.post("/create-task")
 async def create_task(message: str | None = None) -> None:
-    await new_task.create_task(message)
+    await message_publishing_service.publish_message(
+        routing_key="hello", message=message
+    )
