@@ -1,10 +1,10 @@
 from dataclasses import dataclass
+from typing import Any, Coroutine
 
+from aio_pika import connect_robust
 from aio_pika.abc import AbstractRobustConnection
 
 from app import configuration
-from typing import Any, Coroutine
-from aio_pika import connect_robust
 
 
 @dataclass(kw_only=True, frozen=True)

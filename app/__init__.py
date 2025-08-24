@@ -3,11 +3,12 @@ from typing import Any, AsyncIterator
 
 from fastapi import FastAPI
 
-from app.models.stop_flag import StopFlag
-from app.services import worker_thread_manager, message_publishing_service
-from .models import QueueOptions
-from .extensions import register_extensions
 from app import configuration
+from app.models.stop_flag import StopFlag
+from app.services import message_publishing_service, worker_thread_manager
+
+from .extensions import register_extensions
+from .models import QueueOptions
 
 worker_manager = worker_thread_manager.WorkerThreadManager(
     queue_options=QueueOptions(name="hello")

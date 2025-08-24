@@ -1,19 +1,20 @@
-from dataclasses import dataclass
 import asyncio
-import multiprocessing
-import multiprocessing.pool
-
-from aio_pika.abc import AbstractIncomingMessage
-from aio_pika import connect_robust
-
-from app.models.stop_flag import StopFlag
-from app import models
 import logging
 import logging.config
-from definitions import ROOT_DIR
+import multiprocessing
+import multiprocessing.pool
 import os
-import logging.config
+
+from dataclasses import dataclass
+
 import yaml
+
+from aio_pika import connect_robust
+from aio_pika.abc import AbstractIncomingMessage
+
+from app import models
+from app.models.stop_flag import StopFlag
+from definitions import ROOT_DIR
 
 
 @dataclass(kw_only=True, frozen=True)

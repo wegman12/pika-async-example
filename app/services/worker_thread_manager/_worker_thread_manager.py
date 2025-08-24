@@ -1,10 +1,13 @@
+import logging
 import multiprocessing
 import multiprocessing.pool
+
 from typing import Callable
-from app.models.stop_flag import StopFlag
-from app import models
+
 from app import configuration as app_configuration
-import logging
+from app import models
+from app.models.stop_flag import StopFlag
+
 from ._worker_thread import WorkerThread
 
 
