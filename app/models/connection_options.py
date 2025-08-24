@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Coroutine
 
 from aio_pika import connect_robust
@@ -9,10 +9,12 @@ from app import configuration
 
 @dataclass(kw_only=True, frozen=True)
 class ConnectionOptions:
-    host: str = configuration.DEFAULT_CONNECTION_HOST
-    port: int = configuration.DEFAULT_CONNECTION_PORT
-    username: str = configuration.DEFAULT_CONNECTION_USER
-    password: str = configuration.DEFAULT_CONNECTION_PASSWORD
+    host: str = field(default_factory=lambda: configuration.DEFAULT_CONNECTION_HOST)
+    port: int = field(default_factory=lambda: configuration.DEFAULT_CONNECTION_PORT)
+    username: str = field(default_factory=lambda: configuration.DEFAULT_CONNECTION_USER)
+    password: str = field(
+        default_factory=lambda: configuration.DEFAULT_CONNECTION_PASSWORD
+    )
 
     def generate_connection(self) -> Coroutine[Any, Any, AbstractRobustConnection]:
         return connect_robust(

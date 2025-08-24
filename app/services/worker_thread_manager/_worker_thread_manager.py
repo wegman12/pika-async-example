@@ -12,39 +12,12 @@ from ._worker_thread import WorkerThread
 
 
 class WorkerThreadManager:
-    @staticmethod
-    def create_worker_thread_factory(
-        *,
-        queue_options: models.QueueOptions,
-        connection_options: models.ConnectionOptions = models.ConnectionOptions(),
-        channel_options: models.ChannelOptions = models.ChannelOptions(),
-        flag: StopFlag,
-    ) -> Callable[[], WorkerThread]:
-        def factory() -> WorkerThread:
-            return WorkerThread(
-                queue_options=queue_options,
-                connection_options=connection_options,
-                channel_options=channel_options,
-                flag=flag,
-            )
-
-        return factory
-
     def __init__(
         self,
         *,
-        queue_options: models.QueueOptions,
         worker_count: int = app_configuration.DEFAULT_WORKER_INSTANCES,
-        connection_options: models.ConnectionOptions = models.ConnectionOptions(),
-        channel_options: models.ChannelOptions = models.ChannelOptions(),
     ) -> None:
         self._flag = StopFlag()
-        self._thread_factory = WorkerThreadManager.create_worker_thread_factory(
-            queue_options=queue_options,
-            connection_options=connection_options,
-            channel_options=channel_options,
-            flag=self._flag,
-        )
 
         self._worker_count = worker_count
         self._pool: multiprocessing.pool.Pool | None = None
@@ -56,15 +29,30 @@ class WorkerThreadManager:
 
     def start_workers(
         self,
+        queue_options: models.QueueOptions,
+        connection_options: models.ConnectionOptions | None = None,
+        channel_options: models.ChannelOptions | None = None,
     ) -> None:
         if self.is_running:
             self._logger.warning("Workers are already running.")
             return
+
+        def factory() -> WorkerThread:
+            return WorkerThread(
+                queue_options=queue_options,
+                connection_options=connection_options or models.ConnectionOptions(),
+                channel_options=channel_options or models.ChannelOptions(),
+                flag=self._flag,
+            )
+
+        self._flag.stop = False
         self._pool = multiprocessing.Pool(processes=self._worker_count)
         for i in range(0, self._worker_count):
-            thread = self._thread_factory()
+            self._logger.info(f"Starting worker #{i + 1}...")
+            thread = factory()
             self._pool.apply_async(
-                thread.consume_sync,
+                WorkerThread.consume_sync,
+                args=(thread,),
                 error_callback=lambda e: self._logger.error(e),
             )
 

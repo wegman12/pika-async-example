@@ -10,9 +10,7 @@ from app.services import message_publishing_service, worker_thread_manager
 from .extensions import register_extensions
 from .models import QueueOptions
 
-worker_manager = worker_thread_manager.WorkerThreadManager(
-    queue_options=QueueOptions(name="hello")
-)
+worker_manager = worker_thread_manager.WorkerThreadManager()
 
 
 @asynccontextmanager
@@ -34,7 +32,7 @@ def read_root() -> dict[str, str]:
 @app.post("/start-workers")
 def start_worker() -> None:
     global worker_manager
-    worker_manager.start_workers()
+    worker_manager.start_workers(queue_options=QueueOptions(name="hello"))
 
 
 @app.post("/stop-workers")
@@ -48,3 +46,9 @@ async def create_task(message: str | None = None) -> None:
     await message_publishing_service.publish_message(
         routing_key="hello", message=message
     )
+
+
+@app.post("/set-prefetch-count")
+async def set_prefetch_count(count: int) -> None:
+
+    configuration.DEFAULT_CONSUMER_PREFETCH_COUNT = count
