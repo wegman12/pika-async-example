@@ -1,30 +1,23 @@
-import threading
-
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Never
+from typing import Any, AsyncIterator
 
 from fastapi import FastAPI
 
 from app import new_task, worker_async
 from app.stop_flag import StopFlag
+from .models import QueueOptions
+from .worker_async import WorkerAsync
+from .extensions import register_extensions
 
-stop_flag = StopFlag()
-
-
-def create_worker_manager() -> threading.Thread:
-    global stop_flag
-    return threading.Thread(target=worker_async.start_workers, args=(stop_flag,))
-
-
-worker_manager = create_worker_manager()
+worker_manager = WorkerAsync(queue_options=QueueOptions(name="hello"))
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncIterator[Any]:
+async def lifespan(application: FastAPI) -> AsyncIterator[Any]:
+    register_extensions(application)
     yield
-    stop_flag.stop = True
-    if worker_manager.is_alive():
-        worker_manager.join()
+    if worker_manager.is_running:
+        worker_manager.stop_workers()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -38,21 +31,13 @@ def read_root() -> dict[str, str]:
 @app.post("/start-workers")
 def start_worker() -> None:
     global worker_manager
-    if worker_manager.is_alive():
-        pass
-    else:
-        worker_manager.start()
+    worker_manager.start_workers()
 
 
 @app.post("/stop-workers")
 def stop_workers() -> None:
     global worker_manager
-    global stop_flag
-    stop_flag.stop = True
-    if worker_manager.is_alive():
-        worker_manager.join()
-    stop_flag.stop = False
-    worker_manager = create_worker_manager()
+    worker_manager.stop_workers()
 
 
 @app.post("/create-task")
